@@ -9,8 +9,8 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 function home() {
   clearInterval(timer); const h = load();
   const weak = weakest(h);
-  $("").innerHTML = `<h1>TECH Practice</h1><p class=sub>EEI TECH battery: 4 tests, about 2 hours, no calculator. Only Mechanical Concepts is published (44 Q / 20 min, 3 choices); other counts/times here are practice estimates.</p>
-  <button class=big data-m=full>Full timed practice (~75 min)</button>
+  $("").innerHTML = `<h1>TECH Practice</h1><p class=sub>Matches EEI's official TECH format: Graphic Problem Solving 16 Q / 15 min (EEI provides a calculator and scratch paper), Interpreting Diagrams 16 Q / 15 min (2 maps, 8 Q each), Mechanical Concepts 44 Q / 20 min (3 choices), Reasoning from Rules 15 Q / 15 min. Tip: zoom in on maps.</p>
+  <button class=big data-m=full>Full timed practice (91 Q, 65 min)</button>
   ${SECS.map(s => `<button class=big data-m=${s.id}>10-Q drill: ${s.name}</button>`).join("")}
   <button class=big data-m=miss ${missed().length ? "" : "disabled"}>Review missed (${missed().length})</button>
   <h2>History</h2>${h.length ? trend(h) + (weak ? `<p>Weakest section: <b>${weak}</b></p>` : "") + `<table>${h.slice(-15).reverse().map(a => `<tr><td>${a.date}</td><td>${a.mode}</td><td>${Math.round(100 * a.score / a.total)}%</td></tr>`).join("")}</table>` : "<p class=sub>Take a test to start tracking.</p>"}`;
@@ -35,7 +35,7 @@ function tick() { const el = document.getElementById("clk"); if (!deadline || !e
 function show() {
   const q = qs[i]; const s = SECS.find(x => x.id === q.sec)!;
   $("").innerHTML = `<div class=bar><span>${s.name}</span><span>${i + 1}/${qs.length}</span><span id=clk></span></div>
-  <p class=q>${esc(q.prompt)}</p>${q.svg ? `<div class=fig>${q.svg}</div>` : ""}${q.table ? `<table class=t><tr>${q.table.cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr>${q.table.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</table>` : ""}
+  ${q.rules ? `<div class=rules>${q.rules.map(r => `<p>${esc(r)}</p>`).join("")}</div>` : ""}<p class=q>${esc(q.prompt)}</p>${q.svg ? `<div class=fig>${q.svg}</div>` : ""}${q.table ? `<table class=t><tr>${q.table.cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr>${q.table.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</table>` : ""}
   ${q.choices.map((c, k) => `<button class="ch ${ans[i] === k ? "sel" : ""}" data-k=${k}><b>${"ABCD"[k]}</b> ${esc(c)}</button>`).join("")}
   <div class=nav><button id=pv ${i === 0 ? "disabled" : ""}>Back</button><button id=nx>${i === qs.length - 1 ? "Finish" : "Next"}</button></div><button id=quit class=link>Quit</button>`;
   document.querySelectorAll(".ch").forEach(b => (b as HTMLButtonElement).onclick = () => { ans[i] = +(b as HTMLElement).dataset.k!; show(); });

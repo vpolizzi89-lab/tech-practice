@@ -1,10 +1,10 @@
 export type Sec = "GPS" | "ID" | "MC" | "RR";
-export interface Q { sec: Sec; prompt: string; svg?: string; table?: { cols: string[]; rows: string[][] }; choices: string[]; answer: number; expl: string; }
+export interface Q { sec: Sec; prompt: string; svg?: string; table?: { cols: string[]; rows: string[][] }; choices: string[]; answer: number; expl: string; rules?: string[]; }
 export const SECS: { id: Sec; name: string; n: number; min: number }[] = [
-  { id: "GPS", name: "Graphic Problem Solving", n: 15, min: 20 },
-  { id: "ID", name: "Interpreting Diagrams", n: 15, min: 15 },
+  { id: "GPS", name: "Graphic Problem Solving", n: 16, min: 15 },
+  { id: "ID", name: "Interpreting Diagrams", n: 16, min: 15 },
   { id: "MC", name: "Mechanical Concepts", n: 44, min: 20 },
-  { id: "RR", name: "Reasoning from Rules", n: 15, min: 20 },
+  { id: "RR", name: "Reasoning from Rules", n: 15, min: 15 },
 ];
 const R = (a: number, b: number): number => a + Math.floor(Math.random() * (b - a + 1));
 const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
@@ -13,7 +13,7 @@ const fmt = (n: number): string => (Math.round(n * 100) / 100).toString();
 // build a numeric MCQ with unique distractors, shuffled
 function num(sec: Sec, prompt: string, ans: number, wrong: number[], expl: string, unit = "", extra: Partial<Q> = {}): Q {
   const seen = new Set<string>([fmt(ans)]); const ds: string[] = [];
-  for (const w of wrong.concat([ans * 2, ans + 1, ans - 1, ans * 1.5, ans + 10])) { const s = fmt(w); if (w > 0 && !seen.has(s) && ds.length < 3) { seen.add(s); ds.push(s); } }
+  for (const w of wrong.concat([ans * 2, ans + 1, ans - 1, ans * 1.5, ans + 10])) { const s = fmt(w); if (w > 0 && !seen.has(s) && ds.length < (sec === "MC" ? 2 : 3)) { seen.add(s); ds.push(s); } }
   const all = shuffle([fmt(ans)].concat(ds)).map((s: string) => s + unit);
   return { sec, prompt, choices: all, answer: all.indexOf(fmt(ans) + unit), expl, ...extra };
 }
@@ -337,14 +337,271 @@ function shiftRule(): Q {
   if (!c2) return shiftRule();
   return { sec: "RR", prompt: rules + " Who is offered overtime first?", table: { cols: ["Name", "OT hrs (qtr)", "Hrs last 24", "Qualified"], rows: ppl.map((p: { n: string; ot: number; h: number; q: boolean }) => [p.n, String(p.ot), String(p.h), p.q ? "Yes" : "No"]) }, choices: c2, answer: c2.indexOf(ans), expl: `Remove unqualified and those over ${hrs} hrs; of the rest, ${ans} has the fewest OT hours.` };
 }
-const rrGen: (() => Q)[] = [schedRule, permitRule, gateQ, gateQ, troubleQ, shiftRule];
+const rrGen: (() => Q)[] = [schedRule, permitRule, troubleQ, shiftRule];
+// ===================== v3 additions: official-format sets (original content) =====================
+type Grp = () => Q[];
+const q4 = (sec: Sec, prompt: string, ans: string, wrong: string[], expl: string, extra: Partial<Q> = {}): Q => {
+  const ws: string[] = []; for (const w of wrong) if (w !== ans && !ws.includes(w) && ws.length < 3) ws.push(w);
+  const ch = shuffle([ans].concat(ws)); return { sec, prompt, choices: ch, answer: ch.indexOf(ans), expl, ...extra };
+};
+const n4 = (sec: Sec, prompt: string, ans: number, wrong: number[], expl: string, unit = "", extra: Partial<Q> = {}): Q => {
+  const pool = wrong.concat([ans + 1, ans - 1, ans + 2, ans - 2, ans + 3]).filter((w: number) => (w >= 0 || ans < 0) && fmt(w) !== fmt(ans));
+  const ws: string[] = []; for (const w of pool) { const s = fmt(w) + unit; if (!ws.includes(s) && ws.length < 3) ws.push(s); }
+  const a = fmt(ans) + unit; const ch = [a].concat(ws).sort((x: string, y: string) => parseFloat(x) - parseFloat(y));
+  return { sec, prompt, choices: ch, answer: ch.indexOf(a), expl, ...extra };
+};
+const f1 = (n: number): string => (Math.round(n * 10) / 10).toFixed(1);
 
-export const GENS: Record<Sec, (() => Q)[]> = { MC: mcGen, GPS: gpsGen, ID: idGen, RR: rrGen };
+function gpsDrawingSet(): Q[] {
+  const u = pick(["m", "ft"]);
+  const h1 = R(150, 400) / 10, h2 = R(300, 900) / 10, h3 = R(80, 250) / 10, hm = R(50, 150) / 10;
+  const w1 = R(600, 1100) / 10, w2 = R(300, Math.floor(w1 * 10) - 120) / 10, w3 = R(150, Math.floor(w2 * 10) - 60) / 10;
+  const H = h1 + h2 + h3 + hm; const off = (w1 - w2) / 2;
+  const kind = pick(["boiler house", "cooling tower deck", "transformer stand", "pipe rack"]);
+  const sx = 200 / w1, sy = 250 / H; const cx = 150, gy = 290;
+  const y1 = gy - h1 * sy, y2 = y1 - h2 * sy, y3 = y2 - h3 * sy, y4 = y3 - hm * sy;
+  const rect = (w: number, yTop: number, yBot: number, op: number): string => `<rect x="${(cx - w * sx / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${(w * sx).toFixed(1)}" height="${(yBot - yTop).toFixed(1)}" fill="currentColor" fill-opacity="${op}"/>`;
+  const lab = (s: string): string => s + " " + u;
+  const svg = P(340, 330, ground(10, 330, gy) + rect(w1, y1, gy, 0.12) + rect(w2, y2, y1, 0.06) + rect(w3, y3, y2, 0.18) + `<line x1="${cx}" y1="${y3}" x2="${cx}" y2="${y4}" stroke-width="3"/>`
+    + vdim(cx + w1 * sx / 2 + 8, y1, gy, lab(f1(h1))) + vdim(cx + w2 * sx / 2 + 8, y2, y1, "B") + vdim(cx + w3 * sx / 2 + 8, y3, y2, lab(f1(h3))) + vdim(cx + 12, y4, y3, lab(f1(hm)))
+    + `<line x1="34" y1="${y4}" x2="34" y2="${gy}" stroke-width="1.2" marker-start="url(#ah)" marker-end="url(#ah)"/>${F("H", 14, 28, (y4 + gy) / 2, "end")}`
+    + dim(cx - w1 * sx / 2, cx + w1 * sx / 2, gy + 24, "") + F(lab(f1(w1)), 12, cx, gy + 38) + dim(cx - w2 * sx / 2, cx + w2 * sx / 2, y1 - 10, "") + F("W", 13, cx, y1 - 14) + F(lab(f1(w3)), 12, cx, y3 + 15)
+    + dim(cx - w1 * sx / 2, cx - w2 * sx / 2, y1 + 14, "") + F("X", 13, cx - (w1 + w2) * sx / 4, y1 + 30) + F("Not to scale", 11, 335, 14, "end", 400));
+  const B = h2;
+  const intro = `Use the ${kind} drawing (dimensions in ${u}). Overall height H = ${f1(H)} ${u}; middle section width W = ${f1(w2)} ${u}.`;
+  const ex = { svg }; const U = " " + u;
+  return shuffle([
+    n4("GPS", `${intro} What is height B of the middle section?`, +f1(B), [+f1(H - h1 - h3), +f1(H - h1 - hm), +f1(B + hm)], `B = H − ${f1(h1)} − ${f1(h3)} − ${f1(hm)} = ${f1(B)} ${u}.`, U, ex),
+    n4("GPS", `${intro} The middle section is centered on the base. What is distance X?`, +f1(off), [+f1(w1 - w2), +f1(off / 2), +f1(off + w3 / 2)], `X = (${f1(w1)} − ${f1(w2)}) ÷ 2 = ${f1(off)} ${u}.`, U, ex),
+    n4("GPS", `${intro} What is three times the height of the base block?`, +f1(3 * h1), [+f1(3 * h3), +f1(2 * h1), +f1(3 * h1 + 3)], `3 × ${f1(h1)} = ${f1(3 * h1)} ${u}.`, U, ex),
+    n4("GPS", `${intro} What is half the height from the ground to the top of the middle section?`, +f1((h1 + B) / 2), [+f1(h1 + B), +f1((h1 + B + h3) / 2), +f1(B / 2)], `(${f1(h1)} + ${f1(B)}) ÷ 2 = ${f1((h1 + B) / 2)} ${u}.`, U, ex),
+    n4("GPS", `${intro} What is the top block width plus the mast height?`, +f1(w3 + hm), [+f1(w2 + hm), +f1(w3 + h3), +f1(w3 + hm + 10)], `${f1(w3)} + ${f1(hm)} = ${f1(w3 + hm)} ${u}.`, U, ex),
+    n4("GPS", `${intro} How much wider is the base block than the top block?`, +f1(w1 - w3), [+f1(w1 - w2), +f1(w2 - w3), +f1(w1 + w3)], `${f1(w1)} − ${f1(w3)} = ${f1(w1 - w3)} ${u}.`, U, ex),
+    n4("GPS", `${intro} What is the height from the ground to the bottom of the mast?`, +f1(h1 + B + h3), [+f1(H), +f1(h1 + B), +f1(H - h1)], `${f1(h1)} + ${f1(B)} + ${f1(h3)} = ${f1(h1 + B + h3)} ${u}.`, U, ex),
+    n4("GPS", `${intro} If H were increased by 50%, what would the new H be?`, +f1(H * 1.5), [+f1(H + 1.5), +f1(H * 2), +f1(H * 1.25)], `${f1(H)} × 1.5 = ${f1(H * 1.5)} ${u}.`, U, ex),
+  ]);
+}
+function gpsGraphSet(): Q[] {
+  const xs = [100, 200, 300, 400, 500, 600, 700, 800];
+  const names = shuffle(["Unit 1", "Unit 2", "Unit 3", "Unit 4"]).slice(0, 3).sort();
+  const ser = names.map(() => { let v = R(4, 14) * 5; return xs.map(() => { const cur = v; v = Math.max(10, Math.min(95, v + pick([-15, -10, -5, 0, 5, 10, 15]))); return cur; }); });
+  const metric = pick([["Load (MW)", "Fuel flow (gal/min)"], ["Pressure (psi)", "Flow (gpm)"], ["Output (kW)", "Speed (rpm)"]]);
+  const yl = metric[0], xl = metric[1];
+  const gx = (k: number): number => 50 + k * 38, gy = (v: number): number => 250 - v * 2.2;
+  const dash = ["", "8 5", "2 4"]; const mk = ["circle", "rect", "tri"];
+  const mark = (t: string, x: number, y: number): string => t === "circle" ? `<circle cx="${x}" cy="${y}" r="3.5" fill="currentColor"/>` : t === "rect" ? `<rect x="${x - 3.5}" y="${y - 3.5}" width="7" height="7" fill="white" stroke-width="1.5"/>` : `<path d="M${x} ${y - 4.5} l4.5 8 h-9z" fill="currentColor"/>`;
+  let b = "";
+  for (let v = 0; v <= 100; v += 10) b += `<line x1="50" y1="${gy(v)}" x2="${gx(7)}" y2="${gy(v)}" stroke-width="${v % 50 ? 0.4 : 0.8}" stroke-opacity="0.6"/>${F(String(v), 11, 45, gy(v) + 4, "end", 400)}`;
+  for (let v = 5; v < 100; v += 10) b += `<line x1="50" y1="${gy(v)}" x2="${gx(7)}" y2="${gy(v)}" stroke-width="0.25" stroke-dasharray="2 3" stroke-opacity="0.6"/>`;
+  xs.forEach((x: number, k: number) => { b += `<line x1="${gx(k)}" y1="${gy(0)}" x2="${gx(k)}" y2="${gy(100)}" stroke-width="0.4" stroke-opacity="0.6"/>${F(String(x), 11, gx(k), 266, "middle", 400)}`; });
+  ser.forEach((s: number[], i: number) => { b += `<polyline points="${s.map((v: number, k: number) => gx(k) + "," + gy(v)).join(" ")}" stroke-width="2" ${dash[i] ? `stroke-dasharray="${dash[i]}"` : ""}/>` + s.map((v: number, k: number) => mark(mk[i], gx(k), gy(v))).join(""); });
+  b += names.map((n: string, i: number) => `<line x1="${60 + i * 95}" y1="300" x2="${85 + i * 95}" y2="300" stroke-width="2" ${dash[i] ? `stroke-dasharray="${dash[i]}"` : ""}/>${mark(mk[i], 72 + i * 95, 300)}${F(n, 12, 90 + i * 95, 304, "start", 500)}`).join("");
+  b += F(xl, 12, 185, 283, "middle", 500) + `<text transform="translate(14 140) rotate(-90)" fill="currentColor" stroke="none" font-size="12" text-anchor="middle">${yl}</text>`;
+  const svg = P(350, 312, b);
+  const intro = `Use the graph (${yl} vs ${xl}).`; const ex = { svg }; const qs: Q[] = [];
+  const s0 = R(0, 2), k0 = R(0, 7);
+  qs.push(n4("GPS", `${intro} What is ${names[s0]}'s value at ${xs[k0]}?`, ser[s0][k0], [ser[s0][k0] + 5, ser[s0][k0] - 5, ser[(s0 + 1) % 3][k0]], `Read ${names[s0]} at ${xs[k0]}: ${ser[s0][k0]}.`, "", ex));
+  const s1 = R(0, 2); const ka = R(0, 3), kb = R(4, 7); const d1 = Math.abs(ser[s1][ka] - ser[s1][kb]);
+  qs.push(n4("GPS", `${intro} For ${names[s1]}, what is the difference between its values at ${xs[ka]} and ${xs[kb]}?`, d1, [ser[s1][ka] + ser[s1][kb], d1 + 5, d1 + 10], `|${ser[s1][ka]} − ${ser[s1][kb]}| = ${d1}.`, "", ex));
+  const k2 = R(0, 7); const tot = ser[0][k2] + ser[1][k2] + ser[2][k2];
+  qs.push(n4("GPS", `${intro} What is the combined total of all three units at ${xs[k2]}?`, tot, [tot + 5, tot - 5, tot + 10], `${ser[0][k2]} + ${ser[1][k2]} + ${ser[2][k2]} = ${tot}.`, "", ex));
+  const k3 = R(0, 7); const sm = ser[0][k3] + ser[1][k3] + ser[2][k3]; const av3 = sm / 3;
+  qs.push(n4("GPS", `${intro} What is the average of the three units at ${xs[k3]}? (round to 0.1)`, +f1(av3), [+f1(av3 + 5), +f1(av3 - 2.5), +f1(sm / 2)], `${sm} ÷ 3 = ${f1(av3)}.`, "", ex));
+  const s4 = R(0, 2); const chg = ser[s4].slice(1).map((v: number, k: number) => Math.abs(v - ser[s4][k])); const mx = Math.max(...chg);
+  if (chg.filter((c: number) => c === mx).length === 1) { const kk = chg.indexOf(mx); const lab = (k: number): string => `${xs[k]} to ${xs[k + 1]}`;
+    qs.push(q4("GPS", `${intro} Between which two neighboring points does ${names[s4]} change the most?`, lab(kk), shuffle([0, 1, 2, 3, 4, 5, 6].filter((k: number) => k !== kk)).slice(0, 3).map(lab), `Largest step for ${names[s4]} is ${mx}, from ${lab(kk)}.`, ex)); }
+  const k5 = R(0, 7); const pairs: number[][] = [[0, 1], [0, 2], [1, 2]]; const sums = pairs.map((p: number[]) => ser[p[0]][k5] + ser[p[1]][k5]); const best = Math.max(...sums);
+  if (sums.filter((s: number) => s === best).length === 1) { const pl = pairs.map((p: number[]) => names[p[0]] + " + " + names[p[1]]);
+    qs.push({ sec: "GPS", prompt: `${intro} At ${xs[k5]}, which two units have the highest combined value?`, choices: pl.concat(["All pairs are equal"]), answer: sums.indexOf(best), expl: pl.map((p: string, i: number) => p + " = " + sums[i]).join("; ") + ".", svg }); }
+  const s6 = R(0, 2); const k6a = R(0, 7); let k6b = R(0, 7); while (k6b === k6a) k6b = R(0, 7);
+  const hi = Math.max(ser[s6][k6a], ser[s6][k6b]), lo = Math.min(ser[s6][k6a], ser[s6][k6b]);
+  if (hi !== lo) { const kh = ser[s6][k6a] >= ser[s6][k6b] ? k6a : k6b, kl = kh === k6a ? k6b : k6a; const r = Math.round(hi / lo * 100) / 100;
+    qs.push(n4("GPS", `${intro} ${names[s6]}'s value at ${xs[kh]} is how many times its value at ${xs[kl]}? (round to 0.01)`, r, [Math.round(lo / hi * 100) / 100, Math.round((hi - lo) / lo * 100) / 100, Math.round(r * 100 + 25) / 100], `${hi} ÷ ${lo} = ${fmt(r)}.`, "", ex)); }
+  const s7 = R(0, 2); const k7 = R(0, 6); const dd = ser[s7][k7 + 1] - ser[s7][k7]; const pct = Math.round(dd / ser[s7][k7] * 1000) / 10;
+  qs.push(n4("GPS", `${intro} By what percent does ${names[s7]} change from ${xs[k7]} to ${xs[k7 + 1]}? (negative = drop; round to 0.1)`, pct, [-pct, Math.round(pct * 20) / 10, dd === pct ? pct + 5 : dd, pct + 10], `(${ser[s7][k7 + 1]} − ${ser[s7][k7]}) ÷ ${ser[s7][k7]} × 100 = ${pct}%.`, "%", ex));
+  return shuffle(qs);
+}
+
+function idMapSet(): Q[] {
+  const RL = pick([["A", "B", "C", "D", "E"], ["F", "G", "H", "J", "K"], ["P", "Q", "R", "S", "T"]]), CN = pick([[1, 2, 3, 4], [3, 4, 5, 6], [5, 6, 7, 8]]);
+  const co1 = pick(["Valley Electric", "Ridge Power", "Northline Co-op"]), co2 = pick(["Keystone Telecom", "Metro Fiber", "Delta Cable"]);
+  const SY = [{ k: "w", name: `${co1} pole (wood)` }, { k: "s", name: `${co1} pole (steel)` }, { k: "t", name: `${co2} pole` }, { k: "x", name: "Transformer" }, { k: "r", name: "Repeater (installed)" }, { k: "p", name: "Repeater (planned)" }, { k: "m", name: "Microwave tower" }];
+  const nr = 5, nc = 4, cw = 78, ch = 66, ox = 30, oy = 26;
+  const riverCol = R(1, 3);
+  type It = { k: string; r: number; c: number; x: number; y: number };
+  const items: It[] = [];
+  const park = new Set<string>(); while (park.size < 2) park.add(`${R(0, nr - 1)},${R(0, nc - 1)}`);
+  for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) {
+    const pk = park.has(`${r},${c}`); const slots = shuffle(pk ? [0, 1, 2] : [0, 1, 2, 3, 4, 5, 6, 7, 8]); const n = R(1, pk ? 3 : 5);
+    for (let j = 0; j < n; j++) { const s = slots[j]; items.push({ k: pick(["w", "w", "s", "s", "t", "t", "x", "r", "p", "m"]), r, c, x: ox + c * cw + 16 + (s % 3) * 24, y: oy + r * ch + 15 + Math.floor(s / 3) * 19 }); }
+  }
+  const oh: { r: number; c1: number; c2: number }[] = []; const ug: { c: number; r1: number; r2: number }[] = [];
+  shuffle([0, 1, 2, 3, 4]).slice(0, 2).forEach((r: number) => { const c1 = R(0, 2); oh.push({ r, c1, c2: R(c1 + 1, 3) }); });
+  shuffle([0, 1, 2, 3]).slice(0, 2).forEach((c: number) => { const r1 = R(0, 3); ug.push({ c, r1, r2: R(r1 + 1, 4) }); });
+  const hasOH = (r: number, c: number): boolean => oh.some((l) => l.r === r && c >= l.c1 && c <= l.c2);
+  const hasUG = (r: number, c: number): boolean => ug.some((l) => l.c === c && r >= l.r1 && r <= l.r2);
+  const sym = (k: string, x: number, y: number): string => {
+    switch (k) {
+      case "w": return `<rect x="${x - 5}" y="${y - 5}" width="10" height="10" fill="currentColor" stroke-width="1"/>`;
+      case "s": return `<rect x="${x - 5}" y="${y - 5}" width="10" height="10" fill="white" stroke-width="1.5"/><line x1="${x - 5}" y1="${y + 5}" x2="${x + 5}" y2="${y - 5}" stroke-width="1.2"/>`;
+      case "t": return `<circle cx="${x}" cy="${y}" r="5.5" fill="white" stroke-width="1.5"/><circle cx="${x}" cy="${y}" r="2" fill="currentColor" stroke="none"/>`;
+      case "x": return `<path d="M${x - 5} ${y - 5} L${x + 5} ${y + 5} M${x + 5} ${y - 5} L${x - 5} ${y + 5}" stroke-width="2.2"/>`;
+      case "r": return `<path d="M${x} ${y - 6} L${x + 6} ${y + 5} H${x - 6} Z" fill="currentColor" stroke-width="1"/>`;
+      case "p": return `<path d="M${x} ${y - 6} L${x + 6} ${y + 5} H${x - 6} Z" fill="white" stroke-width="1.5"/>`;
+      default: return `<path d="M${x} ${y - 6} L${x + 5} ${y + 6} M${x} ${y - 6} L${x - 5} ${y + 6} M${x - 3} ${y + 1} H${x + 3}" stroke-width="1.6"/><circle cx="${x}" cy="${y - 7}" r="2" fill="currentColor"/>`;
+    }
+  };
+  let b = "";
+  park.forEach((p: string) => { const [r, c] = p.split(",").map(Number); b += `<rect x="${ox + c * cw + 4}" y="${oy + r * ch + 32}" width="${cw - 8}" height="${ch - 36}" fill="url(#hatch)" stroke-width="0.8" opacity="0.5"/>${F("PARK", 9, ox + c * cw + cw / 2, oy + r * ch + 58, "middle", 700)}`; });
+  const rx = ox + riverCol * cw; let rp = `M${rx} ${oy}`; for (let y = oy; y < oy + nr * ch; y += 22) rp += ` Q${rx + 6} ${y + 5.5} ${rx} ${y + 11} T${rx} ${y + 22}`;
+  b += `<path d="${rp}" stroke-width="6" stroke-opacity="0.25"/><path d="${rp}" stroke-width="1"/>`;
+  oh.forEach((l) => { const y = oy + l.r * ch + 5; b += `<line x1="${ox + l.c1 * cw + 2}" y1="${y}" x2="${ox + (l.c2 + 1) * cw - 2}" y2="${y}" stroke-width="2"/>`; for (let x = ox + l.c1 * cw + 8; x < ox + (l.c2 + 1) * cw; x += 10) b += `<line x1="${x}" y1="${y - 3}" x2="${x}" y2="${y + 3}" stroke-width="1"/>`; });
+  ug.forEach((l) => { const x = ox + l.c * cw + 5; b += `<line x1="${x}" y1="${oy + l.r1 * ch + 2}" x2="${x}" y2="${oy + (l.r2 + 1) * ch - 2}" stroke-width="2" stroke-dasharray="2 3"/>`; });
+  for (let r = 0; r <= nr; r++) b += `<line x1="${ox}" y1="${oy + r * ch}" x2="${ox + nc * cw}" y2="${oy + r * ch}" stroke-width="0.6" ${r % nr ? `stroke-dasharray="4 3"` : ""}/>`;
+  for (let c = 0; c <= nc; c++) b += `<line x1="${ox + c * cw}" y1="${oy}" x2="${ox + c * cw}" y2="${oy + nr * ch}" stroke-width="0.6" ${c % nc ? `stroke-dasharray="4 3"` : ""}/>`;
+  RL.forEach((r: string, i: number) => { b += F(r, 14, 15, oy + i * ch + ch / 2 + 5); });
+  CN.forEach((c: number, i: number) => { b += F(String(c), 14, ox + i * cw + cw / 2, 18); });
+  items.forEach((it) => { b += sym(it.k, it.x, it.y); });
+  let ly = oy + nr * ch + 22; const lx = [ox, ox + 165];
+  SY.forEach((s, i: number) => { const x = lx[i % 2], y = ly + Math.floor(i / 2) * 20; b += sym(s.k, x + 6, y - 4) + F(s.name, 10.5, x + 18, y, "start", 400); });
+  const extra = [["oh", "Overhead line"], ["ug", "Underground cable"], ["rv", "River"], ["pk", "Park"]];
+  extra.forEach((e: string[], j: number) => { const i = SY.length + j; const x = lx[i % 2], y = ly + Math.floor(i / 2) * 20;
+    b += e[0] === "oh" ? `<line x1="${x}" y1="${y - 4}" x2="${x + 14}" y2="${y - 4}" stroke-width="2"/><line x1="${x + 4}" y1="${y - 7}" x2="${x + 4}" y2="${y - 1}" stroke-width="1"/><line x1="${x + 10}" y1="${y - 7}" x2="${x + 10}" y2="${y - 1}" stroke-width="1"/>`
+      : e[0] === "ug" ? `<line x1="${x}" y1="${y - 4}" x2="${x + 14}" y2="${y - 4}" stroke-width="2" stroke-dasharray="2 3"/>` : e[0] === "rv" ? `<path d="M${x} ${y - 4} q4 -5 7 0 t7 0" stroke-width="1.5"/>` : `<rect x="${x}" y="${y - 10}" width="14" height="11" fill="url(#hatch)" stroke-width="0.8" opacity="0.6"/>`;
+    b += F(e[1], 10.5, x + 18, y, "start", 400); });
+  ly += Math.ceil((SY.length + extra.length) / 2) * 20;
+  b += F("N ↑", 12, ox + nc * cw - 2, ly - 2, "end");
+  const svg = P(360, ly + 6, b);
+  const sec = (r: number, c: number): string => RL[r] + CN[c];
+  const cnt = (f: (it: It) => boolean): number => items.filter(f).length;
+  const nm = (k: string): string => SY.find((s) => s.k === k)!.name;
+  const pre = `Use the map and legend. A section is a whole lettered row or numbered column; a sector is one block (for example ${sec(1, 2)}).`;
+  const ex = { svg }; const qs: Q[] = []; const POLE = ["w", "s", "t"];
+  { const r = R(0, 4), c = R(0, 3); const n = cnt((it) => it.r === r && it.c === c && POLE.includes(it.k));
+    qs.push(n4("ID", `${pre} How many poles of any kind are in sector ${sec(r, c)}?`, n, [n + 1, n - 1, cnt((it) => it.r === r && it.c === c)], `Count every pole symbol (both ${co1} types and ${co2}) in ${sec(r, c)}: ${n}.`, "", ex)); }
+  { const r = R(0, 4), k = pick(["w", "s"]); const n = cnt((it) => it.r === r && it.k === k);
+    qs.push(n4("ID", `${pre} How many ${nm(k)} symbols are in section ${RL[r]}?`, n, [cnt((it) => it.r === r && (it.k === "w" || it.k === "s")), n + 1, n + 2], `Scan row ${RL[r]} across all four columns: ${n}.`, "", ex)); }
+  { const c1 = R(0, 2); const n = cnt((it) => (it.c === c1 || it.c === c1 + 1) && it.k === "p");
+    qs.push(n4("ID", `${pre} How many repeaters are planned (not yet installed) in sections ${CN[c1]} and ${CN[c1 + 1]} combined?`, n, [cnt((it) => (it.c === c1 || it.c === c1 + 1) && (it.k === "p" || it.k === "r")), n + 1, n + 2], `Count open triangles in columns ${CN[c1]} and ${CN[c1 + 1]}: ${n}.`, "", ex)); }
+  { const east = pick([true, false]); const n = cnt((it) => it.k === "m" && (east ? it.c >= riverCol : it.c < riverCol));
+    qs.push(n4("ID", `${pre} How many microwave towers are ${east ? "east" : "west"} of the river? (North is up.)`, n, [cnt((it) => it.k === "m"), n + 1, n - 1], `The river runs between sections ${CN[riverCol - 1]} and ${CN[riverCol]}. Towers ${east ? "east" : "west"} of it: ${n}.`, "", ex)); }
+  { let n = 0, o = 0; for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) { if (hasOH(r, c) && hasUG(r, c)) n++; if (hasOH(r, c) || hasUG(r, c)) o++; }
+    qs.push(n4("ID", `${pre} How many sectors contain BOTH an overhead line and an underground cable?`, n, [n + 1, n + 2, o], `Overhead lines run along the tops of sectors; underground cables along the left sides. Sectors with both: ${n}.`, "", ex)); }
+  { const ps = [...park].map((p: string) => p.split(",").map(Number)); const inP = (it: It): boolean => ps.some((p: number[]) => p[0] === it.r && p[1] === it.c);
+    const n = cnt((it) => (it.k === "r" || it.k === "p") && inP(it));
+    qs.push(n4("ID", `${pre} How many repeaters (installed or planned) are in the sectors that contain a park?`, n, [n + 1, n + 2, cnt((it) => inP(it))], `Parks are in ${ps.map((p: number[]) => sec(p[0], p[1])).join(" and ")}; repeaters there: ${n}.`, "", ex)); }
+  { const c = R(0, 3); const nt = cnt((it) => it.c === c && it.k === "t"), nw = cnt((it) => it.c === c && it.k === "w");
+    qs.push(n4("ID", `${pre} How many ${co2} poles plus ${co1} wood poles are in section ${CN[c]}?`, nt + nw, [cnt((it) => it.c === c && POLE.includes(it.k)), nt + nw + 1, nt + nw - 1], `Column ${CN[c]}: ${nt} ${co2} + ${nw} wood = ${nt + nw}.`, "", ex)); }
+  { const l = pick(oh); const len = l.c2 - l.c1 + 1; const ft = pick([250, 500]);
+    qs.push(n4("ID", `${pre} Each sector is ${ft} ft wide. About how long is the overhead line in section ${RL[l.r]}?`, len * ft, [(len + 1) * ft, (len + 2) * ft, len * ft * 2, len === 1 ? 3 * ft : (len - 1) * ft], `It spans ${len} sector(s), ${sec(l.r, l.c1)} to ${sec(l.r, l.c2)}: ${len} × ${ft} = ${len * ft} ft.`, " ft", ex)); }
+  { const k = pick(["x", "m", "r"]); const per = RL.map((_: string, r: number) => cnt((it) => it.r === r && it.k === k)); const mx = Math.max(...per);
+    if (per.filter((v: number) => v === mx).length === 1) qs.push(q4("ID", `${pre} Which section (lettered row) has the most ${nm(k).toLowerCase()} symbols?`, RL[per.indexOf(mx)], shuffle(RL.filter((_: string, i: number) => i !== per.indexOf(mx))), `Row counts: ${RL.map((r: string, i: number) => r + " = " + per[i]).join(", ")}.`, ex)); }
+  return shuffle(qs).slice(0, 8);
+}
+
+function rrNetSet(): Q[] {
+  for (let tries = 0; tries < 300; tries++) {
+    const N = 8; const layer = [0, 0, 1, 1, 1, 2, 2, 2]; const ids = shuffle([1, 2, 3, 4, 5, 6, 7, 8]);
+    const kind: Record<number, string> = {}; ids.forEach((id: number, i: number) => { kind[id] = layer[i] === 0 ? "sq" : pick(["sq", "ci"]); });
+    const edges: number[][] = [];
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (layer[j] > layer[i] && Math.random() < (layer[j] - layer[i] === 1 ? 0.55 : 0)) edges.push([ids[i], ids[j]]);
+    const ins = (n: number): number[] => edges.filter((e) => e[1] === n).map((e) => e[0]);
+    const sim = (off: number[]): Set<number> => { const on = new Set<number>(); ids.forEach((n: number, i: number) => { if (off.includes(n)) return; if (layer[i] === 0) { on.add(n); return; } const k = ins(n).filter((m: number) => on.has(m)).length; if (kind[n] === "sq" ? k >= 1 : k >= 2) on.add(n); }); return on; };
+    if (sim([]).size !== N) continue;
+    if (!ids.some((n: number) => kind[n] === "ci")) continue;
+    const pos: Record<number, number[]> = {}; const byL = [0, 1, 2].map((l: number) => ids.filter((_: number, i: number) => layer[i] === l));
+    byL.forEach((g: number[], l: number) => g.forEach((n: number, k: number) => { pos[n] = [45 + l * 120, 40 + (k + (g.length === 2 ? 0.5 : 0)) * 90]; }));
+    let b = ""; edges.forEach((e) => { const [x1, y1] = pos[e[0]], [x2, y2] = pos[e[1]]; const d = Math.hypot(x2 - x1, y2 - y1); const ux = (x2 - x1) / d, uy = (y2 - y1) / d;
+      b += `<line x1="${(x1 + ux * 19).toFixed(1)}" y1="${(y1 + uy * 19).toFixed(1)}" x2="${(x2 - ux * 21).toFixed(1)}" y2="${(y2 - uy * 21).toFixed(1)}" stroke-width="1.5" marker-end="url(#ah)"/>`; });
+    ids.forEach((n: number) => { const [x, y] = pos[n]; b += kind[n] === "sq" ? `<rect x="${x - 16}" y="${y - 16}" width="32" height="32" fill="white" stroke-width="2"/>` : `<circle cx="${x}" cy="${y}" r="17" fill="white" stroke-width="2"/>`; b += L(x, y + 5, String(n), 15); });
+    const svg = P(300, 270, b);
+    const rules = [`Units pass power along the arrows. All units start ON. Treat each question separately.`, `Rule 1: A unit that is shut down sends no power to any unit its arrows point to.`, `Rule 2: A SQUARE unit stays on if at least ONE unit pointing to it is on. Squares with no arrows coming in are power sources and stay on unless shut down.`, `Rule 3: A CIRCLE unit stays on only if at least TWO units pointing to it are on.`];
+    const pre = "Use the network and the rules."; const ex = { svg, rules }; const qs: Q[] = [];
+    const lost = (k: number): number[] => ids.filter((n: number) => n !== k && !sim([k]).has(n));
+    { const k = pick(ids.filter((_: number, i: number) => layer[i] < 2)); const n = lost(k).length;
+      qs.push(n4("RR", `${pre} If unit ${k} is shut down, how many OTHER units stop working?`, n, [n + 1, n + 2, n - 1, n + 3], `Shutting ${k} stops: ${lost(k).join(", ") || "none"} (${n}).`, "", ex)); }
+    { const k = pick(ids.filter((_: number, i: number) => layer[i] === 2)); const cand = ids.filter((n: number) => n !== k); const affect = cand.filter((m: number) => lost(m).includes(k));
+      if (affect.length >= 1 && cand.length - affect.length >= 3) { const a = pick(affect); const wr = shuffle(cand.filter((m: number) => !affect.includes(m))).slice(0, 3).map(String);
+        qs.push(q4("RR", `${pre} Shutting down which unit, by itself, would cause unit ${k} to stop working?`, String(a), wr, `Shutting ${a} cascades to ${k}; shutting ${wr.join(", ")} does not.`, ex)); } }
+    { const k = pick(ids.filter((_: number, i: number) => layer[i] < 2)); const ls = lost(k); const rest = ids.filter((n: number) => n !== k && !ls.includes(n));
+      if (ls.length >= 1 && rest.length >= 3) { const a = pick(ls); qs.push(q4("RR", `${pre} If unit ${k} is shut down, which of these units will ALSO stop working?`, String(a), shuffle(rest).slice(0, 3).map(String), `Cascade from ${k}: ${ls.join(", ")}.`, ex)); } }
+    { const k = pick(ids.filter((n: number) => kind[n] === "ci")); const ii = ins(k);
+      qs.push(n4("RR", `${pre} How many units point power directly into circle unit ${k}?`, ii.length, [ii.length + 1, ii.length - 1, ii.length + 2], `Arrows into ${k} come from ${ii.join(", ")}.`, "", ex)); }
+    { const k = pick(ids.filter((_: number, i: number) => layer[i] > 0)); const sing = ids.filter((m: number) => m !== k && lost(m).includes(k));
+      qs.push({ sec: "RR", prompt: `${pre} Is there any SINGLE unit whose shutdown would stop unit ${k}?`, choices: ["Yes", "No", "Only if a circle unit is shut down", "Cannot be determined"], answer: sing.length ? 0 : 1, expl: sing.length ? `Yes: shutting ${sing.join(" or ")} stops ${k}.` : `No: unit ${k} has enough independent feeds.`, svg, rules }); }
+    if (qs.length >= 4) return shuffle(qs).slice(0, 5);
+  }
+  return [troubleQ()];
+}
+function rrProcSet(): Q[] {
+  const c1 = pick(["TX", "PV", "HX", "BL"]) + R(10, 99), c2 = pick(["QF", "MZ", "KR", "DS"]) + R(10, 99); const lv = R(3, 5); const mins = pick([5, 10, 15]);
+  const A = pick(["north", "east"]), Bz = A === "north" ? "south" : "west";
+  const rules = [
+    `You monitor alarms in a plant control room.`,
+    `1. Alarm ${c1} in the ${A} unit: radio the shift lead if it is type P; page the I&C tech if it is type V.`,
+    `2. Alarm ${c1} in the ${Bz} unit: CALL the ${Bz}-unit foreman if it is level ${lv} or higher; TEXT the ${Bz}-unit foreman if it is below level ${lv}.`,
+    `3. Alarm ${c2} (any unit): CALL the operations manager if it is level ${lv} or higher; TEXT the operations manager if below level ${lv}.`,
+    `Only exception (all conditions must be met): for an ${c1} alarm in the ${Bz} unit at EXACTLY level ${lv}, write it in the alarm log BEFORE calling the foreman if fewer than ${mins} minutes have passed since it started. If ${mins} or more minutes have passed, or the start time is unknown, call first and log it afterward.`,
+  ];
+  const ex = { rules }; const pre = "Use the alarm rules.";
+  const o = [`Call the ${Bz}-unit foreman.`, `Text the ${Bz}-unit foreman.`, `Write it in the alarm log.`, `Radio the shift lead.`, `Page the I&C tech.`, `Call the operations manager.`, `Text the operations manager.`];
+  const L2 = R(lv + 1, 7), m1 = R(1, mins - 1), m2 = pick([mins, mins + R(1, 10), -1]), t = pick(["P", "V"]), L3 = R(1, lv - 1);
+  return shuffle([
+    q4("RR", `${pre} A level ${L2} ${c2} alarm comes in. You should:`, o[5], [o[6], o[0], o[3]], `Rule 3: ${c2} at level ${lv} or higher means call the operations manager.`, ex),
+    q4("RR", `${pre} A level ${lv} ${c1} alarm in the ${Bz} unit started ${m1} minutes ago. Your FIRST step is to:`, o[2], [o[0], o[1], o[5]], `The exception applies (level exactly ${lv}, ${Bz} unit, under ${mins} min): log first, then call.`, ex),
+    q4("RR", `${pre} A level ${lv} ${c1} alarm in the ${Bz} unit ${m2 < 0 ? "started at an unknown time" : `started ${m2} minutes ago`}. Your FIRST step is to:`, o[0], [o[2], o[1], o[3]], `Exception: ${m2 < 0 ? "unknown time" : mins + " or more minutes"} means call the foreman first, then log it.`, ex),
+    q4("RR", `${pre} A type ${t} ${c1} alarm occurs in the ${A} unit. You should:`, t === "P" ? o[3] : o[4], [t === "P" ? o[4] : o[3], o[0], o[6]], `Rule 1: ${A} unit, type ${t}.`, ex),
+    q4("RR", `${pre} A co-worker handled a ${c2} alarm by sending a text. What can you correctly conclude?`, `It was below level ${lv}.`, [`It was exactly level ${lv}.`, `It happened in the ${A} unit.`, `Fewer than ${mins} minutes had passed.`], `Only rule 3 covers ${c2}, and a text means below level ${lv}. Unit and time don't matter.`, ex),
+    q4("RR", `${pre} A level ${L3} ${c1} alarm occurs in the ${Bz} unit. You should:`, o[1], [o[0], o[2], o[6]], `Rule 2: below level ${lv} means text the foreman. The exception covers only level exactly ${lv}.`, ex),
+  ]).slice(0, 5);
+}
+
+const mcConcept: (() => Q)[] = [
+  () => { const sw = Math.random() < 0.5; const box = (x: number, rough: boolean, n: string): string => `${rough ? `<rect x="${x - 60}" y="96" width="120" height="8" fill="url(#hatch)"/>` : `<line x1="${x - 60}" y1="100" x2="${x + 60}" y2="100" stroke-width="3"/>`}<rect x="${x - 25}" y="56" width="50" height="40" fill="currentColor" fill-opacity="0.15"/>${L(x, 125, n + ": " + (rough ? "carpet" : "smooth tile"), 12)}`;
+    return pic("Two identical boxes rest on different floors. Which box is easier to slide?", P(300, 135, box(75, sw, "A") + box(225, !sw, "B")), ["Box A", "Box B", "Both equally"], sw ? 1 : 0, "The smoother floor has less friction, so less force is needed."); },
+  () => { const ord = shuffle(["A", "B", "C"]); const pts = [[60, 98], [150, 35], [240, 98]];
+    return pic("A ball is thrown and follows the dashed path. At which labeled point is it moving slowest?", P(300, 150, `<path d="M20 140 Q150 -70 280 140" stroke-dasharray="5 4"/>${ground(5, 295, 140)}${pts.map((p: number[], i: number) => `<circle cx="${p[0]}" cy="${p[1]}" r="5" fill="currentColor"/>${L(p[0] + (i === 1 ? 0 : i === 0 ? -16 : 16), p[1] - 10, ord[i], 14)}`).join("")}`), ["Point A", "Point B", "Point C"], ["A", "B", "C"].indexOf(ord[1]), "At the top of its arc the ball's upward speed is zero, so it moves slowest there."); },
+  () => { const sw = Math.random() < 0.5; const tr = (x: number, high: boolean, n: string): string => `<rect x="${x - 50}" y="80" width="100" height="16" fill="currentColor" fill-opacity="0.15"/><circle cx="${x - 30}" cy="100" r="9" fill="white"/><circle cx="${x + 30}" cy="100" r="9" fill="white"/>${high ? `<rect x="${x - 22}" y="18" width="44" height="62" fill="currentColor" fill-opacity="0.3"/>` : `<rect x="${x - 45}" y="58" width="90" height="22" fill="currentColor" fill-opacity="0.3"/>`}${L(x, 130, n, 14)}`;
+    return pic("Two trucks carry the same weight of cargo, loaded as shown. Which is LESS likely to tip over on a sharp curve?", P(300, 138, ground(5, 295, 109) + tr(75, sw, "A") + tr(225, !sw, "B")), ["Truck A", "Truck B", "Both the same"], sw ? 1 : 0, "A lower center of gravity makes a vehicle more stable."); },
+  () => { const sa = Math.random() < 0.5; const t = (x: number, s: boolean, n: string): string => `<path d="M${x - 50} 30 V120 H${x + 50} V30"/><rect x="${x - 50}" y="50" width="100" height="70" fill="currentColor" fill-opacity="${s ? 0.3 : 0.1}" stroke="none"/>${L(x, 140, n + ": " + (s ? "salt water" : "fresh water"), 12)}<rect x="${x - 12}" y="${s ? 34 : 40}" width="24" height="18" fill="white"/>`;
+    return pic("The same block is placed in each tank. Salt water is denser than fresh water. In which tank does the block float higher?", P(300, 150, t(75, sa, "A") + t(225, !sa, "B")), ["Tank A", "Tank B", "Same in both"], sa ? 0 : 1, "A denser liquid pushes up harder, so the block floats higher in salt water."); },
+  () => { const wa = Math.random() < 0.5; const pan = (x: number, wide: boolean, n: string): string => wide ? `<path d="M${x - 60} 90 V115 H${x + 60} V90"/><rect x="${x - 60}" y="98" width="120" height="17" fill="currentColor" fill-opacity="0.2" stroke="none"/>${L(x, 138, n, 14)}` : `<path d="M${x - 20} 20 V115 H${x + 20} V20"/><rect x="${x - 20}" y="40" width="40" height="75" fill="currentColor" fill-opacity="0.2" stroke="none"/>${L(x, 138, n, 14)}`;
+    return pic("Both containers hold the same amount of water at the same temperature. Which cools faster?", P(300, 148, pan(75, wa, "A") + pan(225, !wa, "B")), ["Container A", "Container B", "Both equally"], wa ? 0 : 1, "More surface area exposed to air loses heat faster; the wide, shallow pan cools first."); },
+  () => { const sa = Math.random() < 0.5; const tk = (x: number, small: boolean, n: string): string => `<rect x="${x - (small ? 22 : 45)}" y="${small ? 50 : 20}" width="${small ? 44 : 90}" height="${small ? 70 : 100}" rx="${small ? 18 : 30}" fill="currentColor" fill-opacity="0.1"/>${L(x, 140, n, 14)}`;
+    return pic("Two tanks hold the same amount of the same gas at the same temperature. In which tank is the pressure greater?", P(300, 150, tk(75, sa, "A") + tk(225, !sa, "B")), ["Tank A", "Tank B", "Both equally"], sa ? 0 : 1, "The same gas squeezed into a smaller volume has higher pressure."); },
+  () => { const w1 = R(1, 5) * 5, w2 = R(6, 12) * 5;
+    return pic(`A ${w1} lb ball (A) and a ${w2} lb ball (B) of the same size are dropped at the same moment from the same height. Ignoring air resistance, which lands first?`, P(300, 160, `${ground(5, 295, 150)}<circle cx="100" cy="42" r="16" fill="currentColor" fill-opacity="0.1"/><circle cx="200" cy="42" r="16" fill="currentColor" fill-opacity="0.4"/>${L(100, 18, "A: " + w1 + " lb", 12)}${L(200, 18, "B: " + w2 + " lb", 12)}<line x1="100" y1="64" x2="100" y2="130" stroke-dasharray="4 4" marker-end="url(#ah)"/><line x1="200" y1="64" x2="200" y2="130" stroke-dasharray="4 4" marker-end="url(#ah)"/>`), ["Ball A", "Ball B", "Same time"], 2, "Without air resistance, everything falls with the same acceleration."); },
+  () => { const hA = R(2, 4), hB = R(5, 8); const sw = Math.random() < 0.5; const a = sw ? hB : hA, bb = sw ? hA : hB;
+    const tw = (x: number, h: number, n: string): string => `<rect x="${x - 25}" y="${150 - h * 14 - 30}" width="50" height="30" fill="currentColor" fill-opacity="0.2"/><line x1="${x - 15}" y1="${150 - h * 14}" x2="${x - 15}" y2="150"/><line x1="${x + 15}" y1="${150 - h * 14}" x2="${x + 15}" y2="150"/><line x1="${x}" y1="${150 - h * 14}" x2="${x}" y2="146" stroke-width="3"/>${L(x, 170, n, 14)}`;
+    return pic("Both towers have identical tanks holding the same amount of water. Which gives more water pressure at a hose at ground level?", P(300, 178, ground(5, 295, 150) + tw(75, a, "A") + tw(225, bb, "B")), ["Tower A", "Tower B", "Both equally"], a > bb ? 0 : 1, "Pressure depends on the height of the water above the outlet; the taller tower gives more."); },
+  () => { const ord = shuffle(["A", "B", "C"]);
+    return pic("Water is poured into connected tubes of different widths that are open at the top. When the water settles, which tube has the highest water level?", P(300, 150, `<path d="M40 30 V130 H260 V30 M70 30 V100 H130 V30 M160 30 V100 H230 V30"/><rect x="40" y="60" width="30" height="70" fill="currentColor" fill-opacity="0.2" stroke="none"/><rect x="130" y="60" width="30" height="70" fill="currentColor" fill-opacity="0.2" stroke="none"/><rect x="230" y="60" width="30" height="70" fill="currentColor" fill-opacity="0.2" stroke="none"/><rect x="70" y="100" width="160" height="30" fill="currentColor" fill-opacity="0.2" stroke="none"/>${[55, 145, 245].map((x: number, i: number) => L(x, 22, ord[i], 14)).join("")}`), ["Tube " + ord[0], "Tube " + ord[1], "Same level in all"], 2, "Connected open tubes fill to the same level, whatever their width."); },
+];
+
+export const GROUPS: Partial<Record<Sec, Grp[]>> = {
+  GPS: [gpsDrawingSet, gpsGraphSet],
+  ID: [idMapSet, idMapSet],
+  RR: [rrProcSet, rrNetSet, () => [schedRule(), permitRule(), troubleQ(), shiftRule(), troubleQ()]],
+};
+
+mcGen.push(...mcConcept);
+
+
+export const GENS: Record<Sec, (() => Q)[]> = { MC: mcGen, GPS: [() => pick(gpsDrawingSet()), () => pick(gpsGraphSet())], ID: [() => pick(idMapSet())], RR: [() => pick(rrProcSet()), () => pick(rrNetSet()), ...rrGen] };
 export function makeSet(sec: Sec, n: number): Q[] {
+  const gr = GROUPS[sec];
+  if (gr) { const full = n >= 15; const order = full ? gr.slice() : shuffle(gr.slice()); let out: Q[] = [];
+    for (const g of order) { const qs = g(); out = out.concat(full ? qs : qs.slice(0, Math.ceil(n / order.length))); }
+    while (out.length < n) out = out.concat(order[0]());
+    return out.slice(0, n).map(fix); }
   const g = GENS[sec]; const out: Q[] = []; let order = shuffle(g.map((_: () => Q, i: number) => i));
   for (let i = 0; i < n; i++) { if (!order.length) order = shuffle(g.map((_: () => Q, j: number) => j)); out.push(fix(g[order.pop() as number]())); }
   return out;
 }
 function fix(q: Q): Q { // 0.0001 placeholder means 0
+  const lim = q.sec === "MC" ? 3 : 4;
+  if (q.choices.length > lim) { const right = q.choices[q.answer]; const keep = shuffle(q.choices.filter((_: string, k: number) => k !== q.answer)).slice(0, lim - 1).concat([right]);
+    const numeric = keep.every((c: string) => !isNaN(parseFloat(c))); const ord = numeric ? keep.sort((x: string, y: string) => parseFloat(x) - parseFloat(y)) : q.choices.filter((c: string) => keep.includes(c));
+    q.choices = ord; q.answer = ord.indexOf(right); }
   q.choices = q.choices.map((c: string) => c.replace(/^0\.0001/, "0")); if (q.prompt) q.expl = q.expl; return q; }
-export const BANK_SIZE = { MC: mcGen.length, GPS: gpsGen.length, ID: idGen.length, RR: rrGen.length };
+export const BANK_SIZE = { MC: mcGen.length, GPS: 2, ID: 1, RR: rrGen.length + 2 };
