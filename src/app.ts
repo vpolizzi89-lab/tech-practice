@@ -13,8 +13,55 @@ function home() {
   <button class=big data-m=full>Full timed practice (91 Q, 65 min)</button>
   ${SECS.map(s => `<button class=big data-m=${s.id}>10-Q drill: ${s.name}</button>`).join("")}
   <button class=big data-m=miss ${missed().length ? "" : "disabled"}>Review missed (${missed().length})</button>
+  <button class=big id=cs>Formula cheat sheet</button>
   <h2>History</h2>${h.length ? trend(h) + (weak ? `<p>Weakest section: <b>${weak}</b></p>` : "") + `<table>${h.slice(-15).reverse().map(a => `<tr><td>${a.date}</td><td>${a.mode}</td><td>${Math.round(100 * a.score / a.total)}%</td></tr>`).join("")}</table>` : "<p class=sub>Take a test to start tracking.</p>"}`;
   document.querySelectorAll("button[data-m]").forEach(b => (b as HTMLButtonElement).onclick = () => start((b as HTMLElement).dataset.m!));
+  (document.getElementById("cs") as HTMLButtonElement).onclick = cheat;
+}
+function cheat() {
+  clearInterval(timer); window.scrollTo(0, 0);
+  const L = (t: string, items: string[]) => `<h2>${t}</h2><ul class=cs>${items.map(x => `<li>${x}</li>`).join("")}</ul>`;
+  $("").innerHTML = `<h1>Formula Cheat Sheet</h1><p class=sub>EEI provides a calculator and scratch paper for Graphic Problem Solving.</p>` +
+  L("Graphic Problem Solving (graphs and tables)", [
+    "Difference = bigger &minus; smaller",
+    "Average = sum &divide; how many",
+    "Percent change = (new &minus; old) &divide; old &times; 100 (negative = drop)",
+    "&ldquo;How many times&rdquo; = bigger &divide; smaller",
+    "Percent of a number: 25% of 80 = 0.25 &times; 80 = 20",
+    "Read the axis labels, units and gridline scale first (each line = 5? 10?)"]) +
+  L("Electrical", [
+    "Ohm&rsquo;s law: V = I &times; R &nbsp;&rarr;&nbsp; I = V &divide; R, R = V &divide; I",
+    "Power: P = V &times; I (also I&sup2;R or V&sup2; &divide; R)",
+    "Series: R<sub>total</sub> = R1 + R2 + &hellip;; same current everywhere; voltages add; one lamp out = all out",
+    "Parallel (2 resistors): R<sub>total</sub> = (R1 &times; R2) &divide; (R1 + R2); equal resistors: R &divide; n",
+    "Parallel: same voltage on each branch; currents add; one lamp out = others stay lit",
+    "Parallel total is always smaller than the smallest resistor"]) +
+  L("Mechanical Concepts", [
+    "Lever: effort &times; effort distance = load &times; load distance (from the fulcrum)",
+    "Mechanical advantage = load &divide; effort",
+    "Pulleys: MA = number of rope strands holding the load",
+    "Gears: speed1 &times; teeth1 = speed2 &times; teeth2; meshing gears turn opposite ways; every other gear turns the same way; an idler doesn&rsquo;t change speed",
+    "Belts: RPM1 &times; D1 = RPM2 &times; D2; open belt = same direction, crossed belt = reverses",
+    "Inclined plane: effort &times; ramp length = weight &times; height",
+    "Work = force &times; distance",
+    "Pressure = force &divide; area (smaller area = more pressure)",
+    "Hydraulics: F1 &divide; A1 = F2 &divide; A2",
+    "Circle area = &pi; &times; r&sup2;",
+    "Speed = distance &divide; time",
+    "Absolute pressure = gauge + 14.7 psi",
+    "Lower and wider center of gravity = more stable",
+    "Heat flows hot &rarr; cold; metals expand when heated"]) +
+  L("Interpreting Diagrams (maps)", [
+    "Section = a whole lettered row or numbered column; sector = one block (e.g. B7)",
+    "Sweep left to right, block by block",
+    "Re-check the legend for look-alikes: solid vs outlined, wood vs steel, installed vs planned",
+    "Zoom in on the map"]) +
+  L("Reasoning from Rules", [
+    "Read the rule, then test each choice against it",
+    "AND = every condition must be true; OR = any one is enough",
+    "Watch for &ldquo;except&rdquo; and &ldquo;not&rdquo;"]) +
+  `<p class=sub>Watch the clock: skip hard ones and come back.</p><button class=big id=hm>Home</button>`;
+  (document.getElementById("hm") as HTMLButtonElement).onclick = home;
 }
 function missed(): Q[] { try { return JSON.parse(localStorage.getItem(KEY + "Missed") || "[]"); } catch { return []; } }
 function weakest(h: Att[]): string { const t: Record<string, number[]> = {}; h.slice(-10).forEach(a => Object.entries(a.per).forEach(([k, v]) => (t[k] = t[k] || []).push(v))); let w = "", m = 101; for (const k in t) { const av = t[k].reduce((x, y) => x + y, 0) / t[k].length; if (av < m) { m = av; w = k; } } return w ? `${SECS.find(s => s.id === w)!.name} (${Math.round(m)}%)` : ""; }
