@@ -324,7 +324,7 @@ function troubleQ(): Q {
   // series chain of 4 relays; lights show which test points are energized
   const k = R(1, 4); const pts = [1, 2, 3, 4, 5].map((i: number) => i <= k ? "ON" : "OFF");
   const ans = `Relay ${k}`; const ch = shuffle(["Relay 1", "Relay 2", "Relay 3", "Relay 4"]);
-  const rsvg = P(320, 110, `<line x1="10" y1="50" x2="310" y2="50"/>` + [1, 2, 3, 4].map((j: number) => `<rect x="${j * 62 - 6}" y="36" width="36" height="28" fill="currentColor" fill-opacity="0.1"/>${L(j * 62 + 12, 55, "R" + j, 12)}`).join("") + [1, 2, 3, 4, 5].map((j: number) => `<circle cx="${j * 62 - 22}" cy="50" r="5" fill="${pts[j - 1] === "ON" ? "currentColor" : "white"}"/>${L(j * 62 - 22, 85, "TP" + j, 11)}${L(j * 62 - 22, 100, pts[j - 1], 11)}`).join(""));
+  const rsvg = P(320, 110, `<line x1="10" y1="50" x2="310" y2="50"/>` + [1, 2, 3, 4].map((j: number) => `<rect x="${j * 62 - 6}" y="36" width="36" height="28" fill="currentColor" fill-opacity="0.1"/>${L(j * 62 + 12, 55, "R" + j, 12)}`).join("") + [1, 2, 3, 4, 5].map((j: number) => `<circle cx="${j * 62 - 22}" cy="50" r="5" fill="${pts[j - 1] === "ON" ? "currentColor" : "none"}"/>${L(j * 62 - 22, 85, "TP" + j, 11)}${L(j * 62 - 22, 100, pts[j - 1], 11)}`).join(""));
   return { sec: "RR", svg: rsvg, prompt: `Power flows through Relays 1→2→3→4 in series. Test point TP1 is before Relay 1, TP2 between 1 and 2, TP3 between 2 and 3, TP4 between 3 and 4, TP5 after 4. Readings: ${pts.map((p: string, i: number) => `TP${i + 1} ${p}`).join(", ")}. Which relay has failed open?`, choices: ch, answer: ch.indexOf(ans), expl: `Power is present at TP${k} but not TP${k + 1}, so the open is between them: Relay ${k}.` };
 }
 function shiftRule(): Q {
