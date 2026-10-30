@@ -1,4 +1,4 @@
-import { SECS, makeSet, shuffle, Q, Sec } from "./bank";
+import { SECS, makeSet, makeElec, shuffle, Q, Sec } from "./bank";
 type Att = { date: string; mode: string; score: number; total: number; per: Record<string, number> };
 const KEY = "techPracticeHistory";
 const load = (): Att[] => { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; } };
@@ -12,6 +12,7 @@ function home() {
   $("").innerHTML = `<h1>TECH Practice</h1><p class=sub>Matches EEI's official TECH format: Graphic Problem Solving 16 Q / 15 min (EEI provides a calculator and scratch paper), Interpreting Diagrams 16 Q / 15 min (2 maps, 8 Q each), Mechanical Concepts 44 Q / 20 min (3 choices), Reasoning from Rules 15 Q / 15 min. Tip: zoom in on maps.</p>
   <button class=big data-m=full>Full timed practice (91 Q, 65 min)</button>
   ${SECS.map(s => `<button class=big data-m=${s.id}>10-Q drill: ${s.name}</button>`).join("")}
+  <button class=big data-m=elec>10-Q drill: Electrical only</button>
   <button class=big data-m=miss ${missed().length ? "" : "disabled"}>Review missed (${missed().length})</button>
   <button class=big id=cs>Formula cheat sheet</button>
   <h2>History</h2>${h.length ? trend(h) + (weak ? `<p>Weakest section: <b>${weak}</b></p>` : "") + `<table>${h.slice(-15).reverse().map(a => `<tr><td>${a.date}</td><td>${a.mode}</td><td>${Math.round(100 * a.score / a.total)}%</td></tr>`).join("")}</table>` : "<p class=sub>Take a test to start tracking.</p>"}`;
@@ -71,6 +72,7 @@ function start(m: string) {
   mode = m; i = 0; secEnds = [];
   if (m === "full") { qs = []; SECS.forEach(s => { qs = qs.concat(makeSet(s.id, s.n)); secEnds.push(qs.length); }); }
   else if (m === "miss") qs = shuffle(missed().filter((x, k, a) => a.findIndex(y => y.prompt === x.prompt && (y as any).svg === (x as any).svg) === k)).slice(0, 20).map(q => { const o = shuffle(q.choices.map((_, k) => k)); return { ...q, choices: o.map(k => q.choices[k]), answer: o.indexOf(q.answer) }; });
+  else if (m === "elec") qs = makeElec(10);
   else qs = makeSet(m as Sec, 10);
   ans = qs.map(() => -1);
   if (m === "full") { secStart(0); } else deadline = 0;
@@ -96,7 +98,7 @@ function finish() {
   qs.forEach((q, k) => { const c = cnt[q.sec] || [0, 0]; c[1]++; if (ans[k] === q.answer) c[0]++; cnt[q.sec] = c; });
   for (const k in cnt) per[k] = Math.round(100 * cnt[k][0] / cnt[k][1]);
   const score = qs.filter((q, k) => ans[k] === q.answer).length; const h = load();
-  const label = mode === "full" ? "Full test" : mode === "miss" ? "Missed review" : "Drill: " + SECS.find(s => s.id === mode)!.name;
+  const label = mode === "full" ? "Full test" : mode === "miss" ? "Missed review" : mode === "elec" ? "Drill: Electrical" : "Drill: " + SECS.find(s => s.id === mode)!.name;
   h.push({ date: new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }), mode: label, score, total: qs.length, per }); save(h);
   const wrong = qs.filter((q, k) => ans[k] !== q.answer);
   let m = missed().filter(x => !qs.some((q, k) => ans[k] === q.answer && q.prompt === x.prompt)); m = m.concat(wrong); { const sk = new Set<string>(); m = m.reverse().filter(x => { const k = x.prompt + "|" + ((x as any).svg || ""); if (sk.has(k)) return false; sk.add(k); return true; }).reverse().slice(-60); }

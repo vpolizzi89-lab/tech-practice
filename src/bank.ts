@@ -611,3 +611,57 @@ function fix(q: Q): Q { // 0.0001 placeholder means 0
     q.choices = ord; q.answer = ord.indexOf(right); }
   q.choices = q.choices.map((c: string) => c.replace(/^0\.0001/, "0")); if (q.prompt) q.expl = q.expl; return q; }
 export const BANK_SIZE = { MC: mcGen.length, GPS: 2, ID: 1, RR: rrGen.length + 2 };
+
+// ---------- ELECTRICAL DRILL (harder circuits) ----------
+const elecNew: (() => Q)[] = [
+  // series + parallel pair: total current
+  () => { const r1 = pick([2, 4, 6, 8, 10]); const rp = pick([4, 8, 12, 20]); const rt = r1 + rp / 2; const i = pick([1, 2, 3, 4]); const v = rt * i;
+    const svg = P(300, 175, `${battery(30, 30, 150, v + " V")}<line x1="30" y1="30" x2="60" y2="30"/>${resistor(60, 30, 150, r1 + " Ω")}<line x1="150" y1="30" x2="250" y2="30"/>${vresistor(170, 30, 150, rp + " Ω")}${vresistor(250, 30, 150, rp + " Ω")}<line x1="30" y1="150" x2="250" y2="150"/>`);
+    return num("MC", `What total current flows from the ${v} V battery?`, i, [v / (r1 + 2 * rp), v / r1, v / rp], `The two ${rp} Ω in parallel = ${rp} / 2 = ${fmt(rp / 2)} Ω. Add the series ${r1} Ω: ${fmt(rt)} Ω total. I = ${v} / ${fmt(rt)} = ${i} A.`, " A", { svg }); },
+  // series + parallel pair: voltage across the series resistor
+  () => { const r1 = pick([2, 4, 6, 8, 10]); const rp = pick([4, 8, 12, 20]); const rt = r1 + rp / 2; const i = pick([1, 2, 3]); const v = rt * i;
+    const svg = P(300, 175, `${battery(30, 30, 150, v + " V")}<line x1="30" y1="30" x2="60" y2="30"/>${resistor(60, 30, 150, "R1 = " + r1 + " Ω")}<line x1="150" y1="30" x2="250" y2="30"/>${vresistor(170, 30, 150, rp + " Ω")}${vresistor(250, 30, 150, rp + " Ω")}<line x1="30" y1="150" x2="250" y2="150"/>`);
+    return num("MC", `How many volts are dropped across R1?`, i * r1, [v - i * r1 === i * r1 ? v : v - i * r1, v, v / 2 === i * r1 ? v / 3 : v / 2], `Total R = ${r1} + (${rp} / 2) = ${fmt(rt)} Ω, so I = ${v} / ${fmt(rt)} = ${i} A. Drop across R1 = ${i} × ${r1} = ${i * r1} V.`, " V", { svg }); },
+  // unequal parallel: total resistance
+  () => { const [a, b] = pick([[6, 12], [3, 6], [4, 12], [10, 15], [20, 30], [12, 24], [6, 3]]); const rt = a * b / (a + b);
+    const svg = P(280, 175, `<circle cx="30" cy="30" r="4"/><circle cx="30" cy="150" r="4"/>${L(16, 34, "X", 14)}${L(16, 154, "Y", 14)}<line x1="30" y1="30" x2="230" y2="30"/><line x1="30" y1="150" x2="230" y2="150"/>${vresistor(120, 30, 150, a + " Ω")}${vresistor(230, 30, 150, b + " Ω")}`);
+    return num("MC", `What is the total resistance between X and Y?`, rt, [a + b, (a + b) / 2, Math.min(a, b)], `Two unequal in parallel: (${a} × ${b}) / (${a} + ${b}) = ${a * b} / ${a + b} = ${fmt(rt)} Ω. Always smaller than the smallest one.`, " Ω", { svg }); },
+  // unequal parallel: battery current
+  () => { const [a, b] = pick([[6, 12], [3, 6], [4, 12], [12, 24]]); const v = pick([12, 24, 48]); const i = v / a + v / b;
+    const svg = P(290, 175, `${battery(30, 30, 150, v + " V")}<line x1="30" y1="30" x2="240" y2="30"/><line x1="30" y1="150" x2="240" y2="150"/>${vresistor(140, 30, 150, a + " Ω")}${vresistor(240, 30, 150, b + " Ω")}`);
+    return num("MC", `How much total current leaves the battery?`, i, [v / (a + b), v / a, v / b], `Each branch gets the full ${v} V: ${v}/${a} = ${fmt(v / a)} A and ${v}/${b} = ${fmt(v / b)} A. Total = ${fmt(i)} A.`, " A", { svg }); },
+  // current in one branch
+  () => { const v = pick([12, 24, 36]); const a = pick([2, 3, 4, 6]); const b = pick([12, 6, 4, 3].filter(x => x !== a));
+    const svg = P(290, 175, `${battery(30, 30, 150, v + " V")}<line x1="30" y1="30" x2="240" y2="30"/><line x1="30" y1="150" x2="240" y2="150"/>${vresistor(140, 30, 150, "R1 = " + a + " Ω")}${vresistor(240, 30, 150, b + " Ω")}`);
+    return num("MC", `How much current flows through R1?`, v / a, [v / (a + b), v / a + v / b, v / b], `In parallel each branch sees the full ${v} V, so I = ${v} / ${a} = ${fmt(v / a)} A.`, " A", { svg }); },
+  // voltage divider
+  () => { const r1 = pick([2, 4, 6, 10]); const r2 = pick([2, 4, 6, 10].filter(x => x !== r1)); const i = pick([1, 2, 3]); const v = (r1 + r2) * i;
+    const svg = P(320, 175, `${battery(30, 30, 150, v + " V")}<line x1="30" y1="30" x2="60" y2="30"/>${resistor(60, 30, 150, r1 + " Ω")}<line x1="150" y1="30" x2="220" y2="30"/>${vresistor(220, 30, 150, "R2 = " + r2 + " Ω")}<line x1="30" y1="150" x2="220" y2="150"/>`);
+    return num("MC", `What voltage is across R2?`, i * r2, [i * r1, v, v / 2 === i * r2 ? v / 3 : v / 2], `Series: total R = ${r1} + ${r2} = ${r1 + r2} Ω, I = ${v} / ${r1 + r2} = ${i} A. V across R2 = ${i} × ${r2} = ${i * r2} V.`, " V", { svg }); },
+  // power P = V x I
+  () => { const v = pick([12, 24, 120]); const i = pick([0.5, 2, 3, 5]);
+    const svg = P(260, 160, `${battery(40, 30, 130, v + " V")}<line x1="40" y1="30" x2="118" y2="30"/>${lamp(130, 30, "")}<line x1="142" y1="30" x2="220" y2="30"/><line x1="220" y1="30" x2="220" y2="130"/><line x1="40" y1="130" x2="220" y2="130"/>${L(130, 110, "I = " + i + " A", 13)}`);
+    return num("MC", `The lamp draws ${i} A from the ${v} V source. How many watts does it use?`, v * i, [v / i, v + i], `P = V × I = ${v} × ${i} = ${fmt(v * i)} W.`, " W", { svg }); },
+  // current from watts
+  () => { const [w, v] = pick([[60, 120], [120, 120], [240, 120], [36, 12], [48, 24], [600, 120], [24, 12]]);
+    const svg = P(260, 160, `${battery(40, 30, 130, v + " V")}<line x1="40" y1="30" x2="118" y2="30"/>${lamp(130, 30, "")}${L(130, 70, w + " W", 13)}<line x1="142" y1="30" x2="220" y2="30"/><line x1="220" y1="30" x2="220" y2="130"/><line x1="40" y1="130" x2="220" y2="130"/>`);
+    return num("MC", `A ${w} W lamp runs on ${v} V. How much current does it draw?`, w / v, [w * v / 100, v / w, w - v > 0 ? (w - v) / 10 : w / v * 4], `I = P / V = ${w} / ${v} = ${fmt(w / v)} A.`, " A", { svg }); },
+  // open switch voltage
+  () => { const v = pick([6, 9, 12, 24]);
+    const svg = P(280, 170, `${battery(30, 30, 140, v + " V")}<line x1="30" y1="30" x2="118" y2="30"/>${lamp(130, 30, "")}<line x1="142" y1="30" x2="180" y2="30"/><circle cx="182" cy="30" r="3"/><line x1="184" y1="29" x2="214" y2="10"/><circle cx="222" cy="30" r="3"/><line x1="225" y1="30" x2="250" y2="30"/><line x1="250" y1="30" x2="250" y2="140"/><line x1="30" y1="140" x2="250" y2="140"/>${L(202, 55, "open", 11)}<line x1="182" y1="33" x2="190" y2="80" stroke-dasharray="3 3"/><line x1="222" y1="33" x2="214" y2="80" stroke-dasharray="3 3"/><circle cx="202" cy="92" r="13"/>${L(202, 97, "V", 13)}`);
+    return pic(`The switch is open. What does the voltmeter across the switch read?`, svg, ["0 V", v + " V", v / 2 + " V"], 1, `No current flows, so the lamp drops 0 V and the full ${v} V appears across the open gap. (A closed switch would read 0 V.)`); },
+  // adding a series lamp
+  () => { const svg = P(300, 150, `${battery(20, 30, 120, "A")}<line x1="20" y1="30" x2="68" y2="30"/>${lamp(80, 30, "")}<line x1="92" y1="30" x2="120" y2="30"/><line x1="120" y1="30" x2="120" y2="120"/><line x1="20" y1="120" x2="120" y2="120"/>${battery(170, 30, 120, "B")}<line x1="170" y1="30" x2="198" y2="30"/>${lamp(210, 30, "")}<line x1="222" y1="30" x2="238" y2="30"/>${lamp(250, 30, "")}<line x1="262" y1="30" x2="280" y2="30"/><line x1="280" y1="30" x2="280" y2="120"/><line x1="170" y1="120" x2="280" y2="120"/>`);
+    return mc3("Identical batteries and identical lamps. Compared with the single lamp in A, each lamp in B is:", ["Dimmer", "Brighter", "Same"], 0, "In series the resistance doubles, so the current halves. Each lamp gets half the voltage and glows dimmer.", svg); },
+  // adding a parallel lamp: battery current
+  () => { const svg = P(300, 160, `${battery(20, 30, 130, "A")}<line x1="20" y1="30" x2="110" y2="30"/><line x1="110" y1="30" x2="110" y2="68"/>${lamp(110, 80, "")}<line x1="110" y1="92" x2="110" y2="130"/><line x1="20" y1="130" x2="110" y2="130"/>${battery(160, 30, 130, "B")}<line x1="160" y1="30" x2="280" y2="30"/><line x1="160" y1="130" x2="280" y2="130"/><line x1="220" y1="30" x2="220" y2="68"/>${lamp(220, 80, "")}<line x1="220" y1="92" x2="220" y2="130"/><line x1="280" y1="30" x2="280" y2="68"/>${lamp(280, 80, "")}<line x1="280" y1="92" x2="280" y2="130"/>`);
+    return mc3("Identical batteries and lamps. Which battery supplies MORE total current?", ["A", "B", "Same"], 1, "Each parallel lamp draws its own full current, so B's battery supplies twice as much. Adding parallel branches lowers total resistance.", svg); },
+];
+export const ELEC: (() => Q)[] = mcGen.slice(14, 18).concat(elecNew);
+export function makeElec(n: number): Q[] {
+  const out: Q[] = []; const seen = new Set<string>(); let order: number[] = [];
+  for (let t = 0; out.length < n && t < n * 40; t++) {
+    if (!order.length) order = shuffle(ELEC.map((_: () => Q, j: number) => j));
+    const q = ELEC[order.pop() as number](); if (seen.has(q.prompt)) continue; seen.add(q.prompt); out.push(fix(q)); }
+  return out;
+}
