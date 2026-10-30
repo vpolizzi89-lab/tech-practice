@@ -73,8 +73,8 @@ const mcGen: (() => Q)[] = [
     return num("MC", `${n} rope strands hold up the lower block. Ignoring friction, what pull lifts the ${w} lb load?`, w / n, [w, w * n, w / (n + 1)], `Supporting strands = ${n}, so ${w} / ${n} = ${fmt(w / n)} lb.`, " lb", { svg: P(280, 195, b) }); },
   // 9 fixed vs movable pulley (picture A/B)
   () => { const w = R(4, 12) * 10;
-    const A = `${ceiling(10, 130, 18)}<line x1="70" y1="18" x2="70" y2="38"/><circle cx="70" cy="50" r="12"/><line x1="58" y1="50" x2="58" y2="130"/><line x1="82" y1="50" x2="82" y2="150" marker-end="url(#ah)"/>${weight(58, 158, 44, w + " lb")}${L(70, 190, "A")}`;
-    const B = `${ceiling(160, 290, 18)}<line x1="190" y1="18" x2="190" y2="110"/><circle cx="210" cy="115" r="20"/><line x1="230" y1="115" x2="230" y2="40"/><line x1="230" y1="40" x2="230" y2="24" marker-end="url(#ah)"/><line x1="210" y1="135" x2="210" y2="145"/>${weight(210, 173, 44, w + " lb")}${L(225, 190, "B")}`;
+    const A = `${ceiling(10, 130, 18)}<line x1="70" y1="18" x2="70" y2="38"/><circle cx="70" cy="50" r="12"/><line x1="58" y1="50" x2="58" y2="130"/><line x1="82" y1="50" x2="82" y2="150" marker-end="url(#ah)"/>${F("pull", 12, 92, 150, "start", 600)}${weight(58, 158, 44, w + " lb")}${L(70, 190, "A")}`;
+    const B = `${ceiling(160, 290, 18)}<line x1="190" y1="18" x2="190" y2="110"/><circle cx="210" cy="115" r="20"/><line x1="230" y1="115" x2="230" y2="66"/><line x1="230" y1="66" x2="230" y2="54" marker-end="url(#ah)"/>${F("pull", 12, 248, 52, "start", 600)}<line x1="210" y1="135" x2="210" y2="145"/>${weight(210, 173, 44, w + " lb")}${L(225, 190, "B")}`;
     return pic(`Which setup takes LESS pull to lift the ${w} lb load?`, P(300, 200, A + B), ["A", "B", "Same"], 1, "B is a movable pulley with 2 supporting strands (half the pull). A is a fixed pulley — it only changes direction."); },
   // 10 piston force
   () => { const p = R(2, 10) * 10, a = pick([2, 3, 4, 5, 10]);
