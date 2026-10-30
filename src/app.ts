@@ -70,7 +70,7 @@ function trend(h: Att[]): string { const p = h.slice(-12).map(a => 100 * a.score
 function start(m: string) {
   mode = m; i = 0; secEnds = [];
   if (m === "full") { qs = []; SECS.forEach(s => { qs = qs.concat(makeSet(s.id, s.n)); secEnds.push(qs.length); }); }
-  else if (m === "miss") qs = shuffle(missed()).slice(0, 20).map(q => { const o = shuffle(q.choices.map((_, k) => k)); return { ...q, choices: o.map(k => q.choices[k]), answer: o.indexOf(q.answer) }; });
+  else if (m === "miss") qs = shuffle(missed().filter((x, k, a) => a.findIndex(y => y.prompt === x.prompt && (y as any).svg === (x as any).svg) === k)).slice(0, 20).map(q => { const o = shuffle(q.choices.map((_, k) => k)); return { ...q, choices: o.map(k => q.choices[k]), answer: o.indexOf(q.answer) }; });
   else qs = makeSet(m as Sec, 10);
   ans = qs.map(() => -1);
   if (m === "full") { secStart(0); } else deadline = 0;
@@ -99,7 +99,7 @@ function finish() {
   const label = mode === "full" ? "Full test" : mode === "miss" ? "Missed review" : "Drill: " + SECS.find(s => s.id === mode)!.name;
   h.push({ date: new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }), mode: label, score, total: qs.length, per }); save(h);
   const wrong = qs.filter((q, k) => ans[k] !== q.answer);
-  let m = missed().filter(x => !qs.some((q, k) => ans[k] === q.answer && q.prompt === x.prompt)); m = m.concat(wrong).slice(-60);
+  let m = missed().filter(x => !qs.some((q, k) => ans[k] === q.answer && q.prompt === x.prompt)); m = m.concat(wrong); { const sk = new Set<string>(); m = m.reverse().filter(x => { const k = x.prompt + "|" + ((x as any).svg || ""); if (sk.has(k)) return false; sk.add(k); return true; }).reverse().slice(-60); }
   try { localStorage.setItem(KEY + "Missed", JSON.stringify(m)); } catch {}
   $("").innerHTML = `<h1>${score}/${qs.length} (${Math.round(100 * score / qs.length)}%)</h1><table>${Object.keys(cnt).map(k => `<tr><td>${SECS.find(s => s.id === k)!.name}</td><td>${cnt[k][0]}/${cnt[k][1]}</td><td>${per[k]}%</td></tr>`).join("")}</table>
   <h2>Missed (${wrong.length})</h2>${qs.map((q, k) => ans[k] === q.answer ? "" : `<div class=rev><p>${esc(q.prompt)}</p>${q.svg ? `<div class=fig>${q.svg}</div>` : ""}<p>Your answer: ${ans[k] < 0 ? "blank" : esc(q.choices[ans[k]])}<br><b>Correct: ${esc(q.choices[q.answer])}</b></p><p class=sub>${esc(q.expl)}</p></div>`).join("")}

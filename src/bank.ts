@@ -589,13 +589,19 @@ mcGen.push(...mcConcept);
 
 export const GENS: Record<Sec, (() => Q)[]> = { MC: mcGen, GPS: [() => pick(gpsDrawingSet()), () => pick(gpsGraphSet())], ID: [() => pick(idMapSet())], RR: [() => pick(rrProcSet()), () => pick(rrNetSet()), ...rrGen] };
 export function makeSet(sec: Sec, n: number): Q[] {
-  const gr = GROUPS[sec];
+  const gr = GROUPS[sec]; const seen = new Set<string>();
+  const key = (q: Q): string => q.prompt + "|" + ((q as any).svg || "");
+  const fresh = (q: Q): boolean => { const k = key(q); if (seen.has(k)) return false; seen.add(k); return true; };
   if (gr) { const full = n >= 15; const order = full ? gr.slice() : shuffle(gr.slice()); let out: Q[] = [];
-    for (const g of order) { const qs = g(); out = out.concat(full ? qs : qs.slice(0, Math.ceil(n / order.length))); }
-    while (out.length < n) out = out.concat(order[0]());
+    for (const g of order) { const qs = g().filter(fresh); out = out.concat(full ? qs : qs.slice(0, Math.ceil(n / order.length))); }
+    for (let t = 0; out.length < n && t < 50; t++) out = out.concat(order[t % order.length]().filter(fresh));
     return out.slice(0, n).map(fix); }
-  const g = GENS[sec]; const out: Q[] = []; let order = shuffle(g.map((_: () => Q, i: number) => i));
-  for (let i = 0; i < n; i++) { if (!order.length) order = shuffle(g.map((_: () => Q, j: number) => j)); out.push(fix(g[order.pop() as number]())); }
+  const g = GENS[sec]; const out: Q[] = []; let order: number[] = [];
+  for (let tries = 0; out.length < n && tries < n * 40; tries++) {
+    if (!order.length) order = shuffle(g.map((_: () => Q, j: number) => j));
+    const q = g[order.pop() as number]();
+    if (seen.has(q.prompt)) continue;
+    seen.add(q.prompt); out.push(fix(q)); }
   return out;
 }
 function fix(q: Q): Q { // 0.0001 placeholder means 0
